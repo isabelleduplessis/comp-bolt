@@ -47,11 +47,15 @@ def run(args):
         "description": description,
         "created": now_iso(),
         "archived": False,
+        "status": "pending",
+        "status_description": None,
+        "review_timestamp": None,
         "notes": [],
         "updates": [],
-        "jobs": [],
+        "reviews": [],
     }
     save_context(target_dir, data)
 
     print(f"Created experiment '{name}' at {target_dir}")
     print(f"Metadata stored in {bolt_file_path(target_dir)}")
+    print("Status: pending")

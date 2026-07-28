@@ -1,8 +1,8 @@
 """bolt archive <name> [-u/--unarchive] [-s/--status]
 
-Archives (or unarchives) a project, experiment, or job. Archived items stay
-in metadata and are recoverable, but are excluded from bolt log reports and
-from bolt review's job lists.
+Archives (or unarchives) a project or experiment. Archived items stay in
+metadata and are recoverable, but are excluded from bolt log reports and
+from bolt review's pending list.
 """
 
 import os
@@ -16,18 +16,18 @@ from ..utils import die
 def register(subparsers):
     p = subparsers.add_parser(
         "archive",
-        help="Archive or unarchive a project, experiment, or job.",
+        help="Archive or unarchive a project or experiment.",
         description=(
-            "Archive a project, experiment, or job. Archived items remain in "
+            "Archive a project or experiment. Archived items remain in "
             "metadata and are recoverable, but are excluded from 'bolt log' "
-            "reports and from 'bolt review' job lists."
+            "reports and from 'bolt review'."
         ),
     )
     p.add_argument(
         "name",
         nargs="?",
         default=None,
-        help="Name (or relative path, for a nested job) of the item to archive.",
+        help="Name (or relative path, for a nested experiment) of the item to archive.",
     )
     p.add_argument(
         "-u",
@@ -50,32 +50,23 @@ def run(args):
         return
 
     if not args.name:
-        die("Specify a project, experiment, or job name to archive (or use -s/--status).")
+        die("Specify a project or experiment name to archive (or use -s/--status).")
 
     target = resolve_target(args.name)
 
     if target is None:
-        die(f"No project, experiment, or job named '{args.name}' found here.")
+        die(f"No project or experiment named '{args.name}' found here.")
 
     if target["kind"] == "ambiguous":
         options = ", ".join(m["rel"] for m in target["matches"])
-        die(f"Multiple jobs match '{args.name}' ({options}); specify the full path.")
+        die(f"Multiple experiments match '{args.name}' ({options}); specify the full path.")
 
-    archived_value = not args.unarchive
-
-    if target["kind"] == "context":
-        data = target["data"]
-        data["archived"] = archived_value
-        save_context(target["dir"], data)
-        label = data.get("name")
-    else:
-        job = target["job"]
-        job["archived"] = archived_value
-        save_context(target["exp_dir"], target["exp_data"])
-        label = job.get("name")
+    data = target["data"]
+    data["archived"] = not args.unarchive
+    save_context(target["dir"], data)
 
     verb = "Unarchived" if args.unarchive else "Archived"
-    print(f"{verb} '{label}'.")
+    print(f"{verb} '{data.get('name')}'.")
 
 
 def _show_status():
@@ -88,21 +79,18 @@ def _show_status():
 
     def walk(d, dat, prefix=""):
         is_archived = dat.get("archived", False)
-        label = f"{prefix}{dat.get('name')} ({dat.get('type')})"
+        status_suffix = f", status={dat['status']}" if dat.get("type") == "experiment" else ""
+        label = f"{prefix}{dat.get('name')} ({dat.get('type')}{status_suffix})"
         (archived if is_archived else active).append(label)
 
-        # An archived experiment's jobs are reported under it, not separately.
-        if dat.get("type") == "experiment" and not is_archived:
-            for job in dat.get("jobs", []):
-                job_label = f"{prefix}  {job.get('name')} (job)"
-                (archived if job.get("archived", False) else active).append(job_label)
-
-        for entry in sorted(os.listdir(d)):
-            sub = os.path.join(d, entry)
-            if os.path.isdir(sub) and os.path.isfile(bolt_file_path(sub)):
-                sub_data = load_yaml(bolt_file_path(sub))
-                if sub_data.get("type") == "experiment":
-                    walk(sub, sub_data, prefix + "  ")
+        # An archived experiment's descendants are reported under it, not separately.
+        if not is_archived:
+            for entry in sorted(os.listdir(d)):
+                sub = os.path.join(d, entry)
+                if os.path.isdir(sub) and os.path.isfile(bolt_file_path(sub)):
+                    sub_data = load_yaml(bolt_file_path(sub))
+                    if sub_data.get("type") == "experiment":
+                        walk(sub, sub_data, prefix + "  ")
 
     walk(directory, data)
 

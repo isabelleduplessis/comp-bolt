@@ -1,12 +1,13 @@
-"""bolt review [job]
+"""bolt review [experiment]
 
-Reviews a job anywhere below the current project/experiment, including jobs
-inside nested experiments. With no argument, lists all pending jobs (shown
-as paths like ./job1.sh or ./exp2/job2.sh) and lets you pick one.
+Reviews an experiment anywhere at or below the current project/experiment,
+including experiments nested inside other experiments. With no argument,
+lists every pending experiment (shown as paths like . or ./exp2/exp3) and
+lets you pick one.
 """
 
 from ..context import require_context, save_context
-from ..targets import collect_all_jobs
+from ..targets import collect_all_experiments
 from ..utils import now_iso, prompt, choose_from_list, die
 
 STATUS_MAP = {
@@ -24,57 +25,65 @@ STATUS_MAP = {
 def register(subparsers):
     p = subparsers.add_parser(
         "review",
-        help="Review a job (searches nested experiments too) and record its status.",
+        help="Review an experiment's status (searches nested experiments too).",
         description=(
-            "Review a job below the current project or experiment, including "
-            "jobs inside nested experiments. If no job is given, you'll be "
-            "prompted to choose from all pending jobs found."
+            "Review an experiment at or below the current project or "
+            "experiment, including experiments nested inside other "
+            "experiments. If none is given, you'll be prompted to choose "
+            "from all pending experiments found."
         ),
     )
     p.add_argument(
-        "job",
+        "experiment",
         nargs="?",
         default=None,
         help=(
-            "Name or relative path of the job to review (e.g. 'run.sh' or "
-            "'./exp2/job2.sh'). If omitted, you'll be prompted to pick one."
+            "Name or relative path of the experiment to review (e.g. "
+            "'mapping' or './phylogeny/pathphynder'). If omitted, you'll be "
+            "prompted to pick one."
         ),
     )
     p.set_defaults(func=run)
 
 
 def run(args):
-    directory, _ = require_context(allowed_types={"project", "experiment"})
-    all_jobs = collect_all_jobs(directory, include_archived=False)
+    directory, data = require_context(allowed_types={"project", "experiment"})
 
-    if not all_jobs:
-        die("No jobs found to review here.")
+    # A project itself has no status; only its experiments do. When run from
+    # a project root, don't offer the project as a reviewable target.
+    include_root = data.get("type") == "experiment"
+    all_exps = collect_all_experiments(
+        directory, include_archived=False, include_root=include_root
+    )
 
-    if args.job:
-        target = args.job
+    if not all_exps:
+        die("No experiments found to review here.")
+
+    if args.experiment:
+        target = args.experiment
         norm = target if target.startswith("./") else f"./{target}"
         matches = [
-            j for j in all_jobs
-            if j["job"]["name"] == target or j["rel"] in (target, norm)
+            e for e in all_exps
+            if e["data"]["name"] == target or e["rel"] in (target, norm)
         ]
         if not matches:
-            die(f"No job matching '{target}' found below the current directory.")
+            die(f"No experiment matching '{target}' found below the current directory.")
         if len(matches) > 1:
             options = ", ".join(m["rel"] for m in matches)
-            die(f"Multiple jobs match '{target}' ({options}); specify the full path.")
+            die(f"Multiple experiments match '{target}' ({options}); specify the full path.")
         entry = matches[0]
     else:
-        pending = [j for j in all_jobs if j["job"].get("status") == "pending"]
+        pending = [e for e in all_exps if e["data"].get("status") == "pending"]
         if not pending:
-            die("No pending jobs to review. Specify a job name explicitly instead.")
-        print("Pending jobs:")
+            die("No pending experiments to review. Specify one explicitly instead.")
+        print("Pending experiments:")
         entry = choose_from_list(
             pending,
-            formatter=lambda j: j["rel"],
-            prompt_text="Select a job to review",
+            formatter=lambda e: e["rel"],
+            prompt_text="Select an experiment to review",
         )
 
-    job_entry = entry["job"]
+    exp_data = entry["data"]
 
     status_input = prompt("Status ([s]uccess / [f]ail / [p]ending / [i]nconclusive): ")
     status = STATUS_MAP.get(status_input.strip().lower())
@@ -85,17 +94,17 @@ def run(args):
     result_text = prompt("Status description: ")
     timestamp = now_iso()
 
-    job_entry.setdefault("reviews", []).append(
+    exp_data.setdefault("reviews", []).append(
         {
             "timestamp": timestamp,
             "status": status,
             "result": result_text,
         }
     )
-    job_entry["status"] = status
-    job_entry["status_description"] = result_text
-    job_entry["review_timestamp"] = timestamp
+    exp_data["status"] = status
+    exp_data["status_description"] = result_text
+    exp_data["review_timestamp"] = timestamp
 
-    save_context(entry["exp_dir"], entry["exp_data"])
+    save_context(entry["dir"], exp_data)
 
     print(f"Recorded review for '{entry['rel']}': {status}")

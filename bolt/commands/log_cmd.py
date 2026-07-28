@@ -2,7 +2,7 @@
 
 Generates a documentation report from .bolt.yml metadata, recursing through
 nested experiments. Prints to stdout; redirect with '>' to save a file.
-Archived experiments and jobs are excluded from the report.
+Archived experiments are excluded.
 """
 
 import os
@@ -71,11 +71,7 @@ def run(args):
 
 def _build_tree(directory):
     data = load_yaml(bolt_file_path(directory))
-    node = {"dir": directory, "data": data, "children": [], "jobs": [], "archived_job_count": 0}
-
-    if data.get("type") == "experiment":
-        node["jobs"] = [j for j in data.get("jobs", []) if not j.get("archived", False)]
-        node["archived_job_count"] = sum(1 for j in data.get("jobs", []) if j.get("archived", False))
+    node = {"dir": directory, "data": data, "children": []}
 
     for entry in sorted(os.listdir(directory)):
         sub = os.path.join(directory, entry)
@@ -118,14 +114,12 @@ def _render_project(tree):
         out.append("---")
         out.append("")
 
-    exp_count, job_count, status_counts, abandoned = _summarize(tree)
+    exp_count, status_counts, abandoned = _summarize(tree)
     out.append("# Summary")
     out.append("")
     out.append(f"**Experiments:** {exp_count}")
     out.append("")
-    out.append(f"**Jobs:** {job_count}")
-    out.append("")
-    out.append("## Job Status Counts")
+    out.append("## Status Counts")
     out.append("")
     out.append(f"- Success: {status_counts.get('success', 0)}")
     out.append(f"- Fail: {status_counts.get('fail', 0)}")
@@ -150,6 +144,30 @@ def _render_experiment_root(tree):
     out.append("---")
     out.append("")
 
+    out.append("## Current Status")
+    out.append("")
+    out.append(data.get("status", "pending"))
+    out.append("")
+    out.append("## Current Result")
+    out.append("")
+    out.append(data.get("status_description") or "")
+    out.append("")
+
+    reviews = data.get("reviews", [])
+    if reviews:
+        out.append("## Review History")
+        out.append("")
+        for review in reviews:
+            out.append(f"### {_date(review.get('timestamp'))}")
+            out.append("")
+            out.append(f"**Status:** {review.get('status')}")
+            out.append("")
+            out.append(f"**Result:** {review.get('result')}")
+            out.append("")
+
+    out.append("---")
+    out.append("")
+
     if data.get("notes"):
         out.append("## Notes")
         out.append("")
@@ -157,12 +175,6 @@ def _render_experiment_root(tree):
         out.append("")
         out.append("---")
         out.append("")
-
-    if tree["jobs"]:
-        out.append("## Jobs")
-        out.append("")
-        for job in tree["jobs"]:
-            out.extend(_render_job_detailed(job, name_level=3))
 
     if tree["children"]:
         out.append("## Nested Experiments")
@@ -189,20 +201,41 @@ def _render_experiment_node(node, name_level, detailed):
     out.append(str(data.get("description") or "").strip())
     out.append("")
 
+    if detailed:
+        out.append("#" * section_level + " Current Status")
+        out.append("")
+        out.append(data.get("status", "pending"))
+        out.append("")
+        out.append("#" * section_level + " Current Result")
+        out.append("")
+        out.append(data.get("status_description") or "")
+        out.append("")
+
+        reviews = data.get("reviews", [])
+        if reviews:
+            out.append("#" * section_level + " Review History")
+            out.append("")
+            review_level = section_level + 1
+            for review in reviews:
+                out.append("#" * review_level + f" {_date(review.get('timestamp'))}")
+                out.append("")
+                out.append(f"**Status:** {review.get('status')}")
+                out.append("")
+                out.append(f"**Result:** {review.get('result')}")
+                out.append("")
+    else:
+        out.append(f"**Status:** {data.get('status', 'pending')}")
+        out.append("")
+        out.append(f"**Last Review:** {_date(data.get('review_timestamp'))}")
+        out.append("")
+        out.append(f"**Result:** {data.get('status_description') or ''}")
+        out.append("")
+
     if data.get("notes"):
         out.append("#" * section_level + " Notes")
         out.append("")
         out.extend(_note_lines(data["notes"]))
         out.append("")
-
-    if node["jobs"]:
-        out.append("#" * section_level + " Jobs")
-        out.append("")
-        for job in node["jobs"]:
-            if detailed:
-                out.extend(_render_job_detailed(job, name_level=child_level))
-            else:
-                out.extend(_render_job_compact(job, name_level=child_level))
 
     if node["children"]:
         out.append("#" * section_level + " Nested Experiments")
@@ -213,77 +246,40 @@ def _render_experiment_node(node, name_level, detailed):
     return out
 
 
-def _render_job_compact(job, name_level):
-    out = []
-    out.append("#" * name_level + f" {job.get('name')}")
-    out.append("")
-    out.append(f"**Description:** {job.get('description', '')}")
-    out.append("")
-    out.append(f"**Status:** {job.get('status', 'pending')}")
-    out.append("")
-    out.append(f"**Last Review:** {_date(job.get('review_timestamp'))}")
-    out.append("")
-    out.append(f"**Result:** {job.get('status_description') or ''}")
-    out.append("")
-    return out
-
-
-def _render_job_detailed(job, name_level):
-    out = []
-    out.append("#" * name_level + f" {job.get('name')}")
-    out.append("")
-
-    section_level = name_level + 1
-    out.append("#" * section_level + " Description")
-    out.append("")
-    out.append(job.get("description", ""))
-    out.append("")
-    out.append("#" * section_level + " Current Status")
-    out.append("")
-    out.append(job.get("status", "pending"))
-    out.append("")
-    out.append("#" * section_level + " Current Result")
-    out.append("")
-    out.append(job.get("status_description") or "")
-    out.append("")
-
-    reviews = job.get("reviews", [])
-    if reviews:
-        out.append("#" * section_level + " Review History")
-        out.append("")
-        review_level = section_level + 1
-        for review in reviews:
-            out.append("#" * review_level + f" {_date(review.get('timestamp'))}")
-            out.append("")
-            out.append(f"**Status:** {review.get('status')}")
-            out.append("")
-            out.append(f"**Result:** {review.get('result')}")
-            out.append("")
-
-    return out
-
-
 def _summarize(tree):
     exp_count = 0
-    job_count = 0
     status_counts = {}
     abandoned = 0
 
     def walk(node):
-        nonlocal exp_count, job_count, abandoned
+        nonlocal exp_count
         exp_count += 1
-        abandoned += node.get("archived_job_count", 0)
-        for job in node["jobs"]:
-            job_count += 1
-            status = job.get("status", "pending")
-            status_counts[status] = status_counts.get(status, 0) + 1
+        data = node["data"]
+        status = data.get("status", "pending")
+        status_counts[status] = status_counts.get(status, 0) + 1
         for child in node["children"]:
             walk(child)
 
     for child in tree["children"]:
         walk(child)
 
-    return exp_count, job_count, status_counts, abandoned
+    # Count archived experiments as "Abandoned" (they're skipped from the
+    # tree above, so re-walk the raw filesystem to tally them).
+    def count_archived(directory):
+        nonlocal abandoned
+        for entry in sorted(os.listdir(directory)):
+            sub = os.path.join(directory, entry)
+            if os.path.isdir(sub) and os.path.isfile(bolt_file_path(sub)):
+                sub_data = load_yaml(bolt_file_path(sub))
+                if sub_data.get("type") == "experiment":
+                    if sub_data.get("archived", False):
+                        abandoned += 1
+                    else:
+                        count_archived(sub)
+
+    count_archived(tree["dir"])
+
+    return exp_count, status_counts, abandoned
 
 
 def _to_plain(markdown_text):

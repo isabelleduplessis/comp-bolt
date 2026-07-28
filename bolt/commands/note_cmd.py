@@ -1,17 +1,17 @@
-"""bolt note ["text"] | bolt note -e/--edit"""
+"""bolt note ["text"] | bolt note -e/--edit | bolt note -v/--view"""
 
-from ..context import require_context, save_context
+import os
+
+from ..context import require_context, save_context, bolt_file_path
+from ..yaml_io import load_yaml
 from ..utils import now_iso, prompt, choose_from_list, die
 
 
 def register(subparsers):
     p = subparsers.add_parser(
         "note",
-        help="Add or edit a timestamped note on the current project/experiment.",
-        description=(
-            "Add a timestamped note to the current project or experiment. "
-            "Jobs do not have notes."
-        ),
+        help="Add, edit, or view timestamped notes on a project/experiment.",
+        description="Add a timestamped note to the current project or experiment.",
     )
     p.add_argument(
         "text",
@@ -29,7 +29,10 @@ def register(subparsers):
         "-v",
         "--view",
         action="store_true",
-        help="Print the notes for the current project/experiment instead of adding one.",
+        help=(
+            "Print notes for the current directory and every experiment "
+            "nested inside it, grouped by relative path."
+        ),
     )
     p.set_defaults(func=run)
 
@@ -41,16 +44,40 @@ def _format_note(note):
     return f"{note['timestamp']}  {preview}"
 
 
+def _collect_notes(root_dir, cwd):
+    """Recursively gather notes from root_dir and every nested experiment
+    below it. Returns a list of (rel_path, name, notes)."""
+    results = []
+    data = load_yaml(bolt_file_path(root_dir))
+    notes = data.get("notes", [])
+    if notes:
+        rel = os.path.relpath(root_dir, cwd)
+        rel_display = "." if rel == "." else (rel if rel.startswith(".") else f"./{rel}")
+        results.append((rel_display, data.get("name"), notes))
+
+    for entry in sorted(os.listdir(root_dir)):
+        sub = os.path.join(root_dir, entry)
+        if os.path.isdir(sub) and os.path.isfile(bolt_file_path(sub)):
+            sub_data = load_yaml(bolt_file_path(sub))
+            if sub_data.get("type") == "experiment":
+                results.extend(_collect_notes(sub, cwd))
+
+    return results
+
+
 def run(args):
     directory, data = require_context(allowed_types={"project", "experiment"})
     notes = data.setdefault("notes", [])
 
     if args.view:
-        if not notes:
+        groups = _collect_notes(directory, directory)
+        if not groups:
             print("No notes here.")
             return
-        for note_entry in notes:
-            print(f"[{note_entry['timestamp']}] {note_entry['text']}")
+        for rel, name, group_notes in groups:
+            print(f"{rel} ({name}):")
+            for note_entry in group_notes:
+                print(f"  [{note_entry['timestamp']}] {note_entry['text']}")
         return
 
     if args.edit:

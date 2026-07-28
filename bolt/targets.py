@@ -1,5 +1,5 @@
-"""Shared target resolution for commands that act on a project/experiment/job
-by name: bolt update, bolt archive, and (for job discovery) bolt review.
+"""Shared target resolution for commands that act on a project or experiment
+by name: bolt update, bolt archive, bolt review, bolt log.
 """
 
 import os
@@ -19,49 +19,48 @@ def find_subdir_context(name, base=None):
     return None, None
 
 
-def collect_all_jobs(root_dir, cwd=None, include_archived=True):
-    """Recursively collect every job under `root_dir` (an experiment or
-    project directory), including nested experiments within experiments.
+def collect_all_experiments(root_dir, cwd=None, include_archived=True, include_root=True):
+    """Recursively collect every experiment at or below `root_dir`, including
+    experiments nested arbitrarily deep inside other experiments.
 
-    Returns a list of dicts: {exp_dir, exp_data, job, rel} where `rel` is a
-    path like './job1.sh' or './exp2/job2.sh' relative to `cwd`.
+    Returns a list of dicts: {dir, data, rel}, where `rel` is a path like
+    '.' (root_dir itself), './mapping', or './phylogeny/pathphynder',
+    relative to `cwd`.
     """
     cwd = cwd or os.getcwd()
     results = []
 
     data = load_yaml(bolt_file_path(root_dir))
-    if data.get("type") == "experiment" and (include_archived or not data.get("archived", False)):
-        for job in data.get("jobs", []):
-            if not include_archived and job.get("archived", False):
-                continue
-            rel = os.path.relpath(os.path.join(root_dir, job["name"]), start=cwd)
-            if not rel.startswith("."):
-                rel = f"./{rel}"
-            results.append({"exp_dir": root_dir, "exp_data": data, "job": job, "rel": rel})
+    is_archived = data.get("archived", False)
 
-    if include_archived or not data.get("archived", False):
+    if data.get("type") == "experiment" and include_root and (include_archived or not is_archived):
+        rel = os.path.relpath(root_dir, cwd)
+        rel_display = "." if rel == "." else (rel if rel.startswith(".") else f"./{rel}")
+        results.append({"dir": root_dir, "data": data, "rel": rel_display})
+
+    if include_archived or not is_archived:
         for entry in sorted(os.listdir(root_dir)):
             sub = os.path.join(root_dir, entry)
             if os.path.isdir(sub) and os.path.isfile(bolt_file_path(sub)):
                 sub_data = load_yaml(bolt_file_path(sub))
                 if sub_data.get("type") == "experiment":
-                    results.extend(collect_all_jobs(sub, cwd, include_archived))
+                    results.extend(
+                        collect_all_experiments(sub, cwd, include_archived, include_root=True)
+                    )
 
     return results
 
 
 def resolve_target(name):
-    """Resolve `name` to a project, experiment, or job, searching (in order):
+    """Resolve `name` to a project or experiment, searching (in order):
 
     1. A subdirectory of the cwd named `name` with its own .bolt.yml.
     2. The current context itself (its `name` field matches).
-    3. A job directly inside the current context.
-    4. Any job nested anywhere below the current context (matched by exact
-       name or by its relative path, e.g. 'exp2/job2.sh').
+    3. Any experiment nested anywhere below the current context (matched by
+       exact name or by its relative path, e.g. 'exp2/exp3').
 
     Returns one of:
       {"kind": "context", "dir": ..., "data": ...}
-      {"kind": "job", "exp_dir": ..., "exp_data": ..., "job": ...}
       {"kind": "ambiguous", "matches": [...]}
       None if nothing matched.
     """
@@ -76,17 +75,15 @@ def resolve_target(name):
     if data.get("name") == name:
         return {"kind": "context", "dir": directory, "data": data}
 
-    if data.get("type") == "experiment":
-        for job in data.get("jobs", []):
-            if job.get("name") == name:
-                return {"kind": "job", "exp_dir": directory, "exp_data": data, "job": job}
-
-    all_jobs = collect_all_jobs(directory)
+    all_exps = collect_all_experiments(directory, include_archived=True, include_root=False)
     norm = name if name.startswith("./") else f"./{name}"
-    matches = [j for j in all_jobs if j["job"].get("name") == name or j["rel"] in (name, norm)]
+    matches = [
+        e for e in all_exps
+        if e["data"].get("name") == name or e["rel"] in (name, norm)
+    ]
     if len(matches) == 1:
         m = matches[0]
-        return {"kind": "job", "exp_dir": m["exp_dir"], "exp_data": m["exp_data"], "job": m["job"]}
+        return {"kind": "context", "dir": m["dir"], "data": m["data"]}
     if len(matches) > 1:
         return {"kind": "ambiguous", "matches": matches}
 
