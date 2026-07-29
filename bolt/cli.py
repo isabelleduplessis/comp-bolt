@@ -9,6 +9,7 @@ from .commands import (
     new_cmd,
     review_cmd,
     note_cmd,
+    result_cmd,
     update_cmd,
     archive_cmd,
     log_cmd,
@@ -47,6 +48,7 @@ def build_parser():
     new_cmd.register(subparsers)
     review_cmd.register(subparsers)
     note_cmd.register(subparsers)
+    result_cmd.register(subparsers)
     update_cmd.register(subparsers)
     archive_cmd.register(subparsers)
     log_cmd.register(subparsers)

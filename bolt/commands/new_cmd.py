@@ -55,6 +55,7 @@ def run(args):
         "status_description": None,
         "review_timestamp": None,
         "notes": [],
+        "results": [],
         "updates": [],
         "reviews": [],
     }

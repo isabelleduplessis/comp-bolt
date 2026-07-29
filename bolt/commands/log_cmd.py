@@ -104,6 +104,19 @@ def _note_lines(notes):
     return [f"- **{_datetime(n.get('timestamp'))}:** {n.get('text')}" for n in notes]
 
 
+def _result_lines(results):
+    lines = []
+    for result in results:
+        ts = _datetime(result.get("timestamp"))
+        content = str(result.get("content") or "")
+        lines.append(f"{ts}:")
+        lines.append("```")
+        lines.extend(content.split("\n"))
+        lines.append("```")
+        lines.append("")
+    return lines
+
+
 def _review_lines(reviews):
     lines = []
     for review in reviews:
@@ -223,6 +236,11 @@ def _render_report(tree, is_project):
             out.append("")
             out.extend(_note_lines(data["notes"]))
             out.append("")
+
+        if data.get("results"):
+            out.append("#### Results")
+            out.append("")
+            out.extend(_result_lines(data["results"]))
 
     out.append("---")
     out.append("")

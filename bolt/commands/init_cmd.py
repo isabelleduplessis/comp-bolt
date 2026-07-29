@@ -45,6 +45,7 @@ def run(args):
         "created": now_iso(),
         "archived": False,
         "notes": [],
+        "results": [],
         "updates": [],
     }
     save_context(target_dir, data)
