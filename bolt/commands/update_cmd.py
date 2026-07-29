@@ -55,9 +55,11 @@ def run(args):
     changed = False
 
     if new_name and new_name != current_name:
-        new_dir = os.path.join(os.path.dirname(directory), new_name)
+        new_dir = os.path.join(os.path.dirname(os.path.normpath(directory)), new_name)
+
         if os.path.exists(new_dir):
             die(f"Cannot rename: '{new_name}' already exists in the parent directory.")
+
         os.rename(directory, new_dir)
         directory = new_dir
         updates.append(
