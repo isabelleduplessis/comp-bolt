@@ -17,27 +17,12 @@ from .context import find_project_root
 from .targets import collect_all_experiments
 
 DESCRIPTION = (
-    "Comp-BOLT: Computational Biology project Organization, Logging, and Tracking\n\n"
-    "Frictionless, well-documented project directories for computational\n"
-    "biology work. Bolt wraps mkdir/touch with hidden .bolt.yml metadata\n"
-    "tracking projects, experiments, statuses, notes, and reviews."
+    "Comp-BOLT: Computational Biology project Organization, Logging, and Tracking\n"
+    "Version: 0.1.0\n"
+    "Well-documented project directories and report generation."
 )
 
 EPILOG = """\
-examples:
-  bolt init "ID015_mammoth_phylogeny"    create a new project
-  bolt new "pathphynder"                 create an experiment (pending by default)
-  bolt review                            review a pending experiment (searches nested ones)
-  bolt review ./phylogeny/pathphynder    review a specific experiment by path
-  bolt note "Received new sequencing data"
-  bolt note -e                           edit an existing note
-  bolt note -v                           view notes here and in nested experiments
-  bolt update pathphynder                rename / re-describe something
-  bolt archive pathphynder               archive an experiment or project
-  bolt archive -s                        show active vs. archived items
-  bolt log > project_report.md           generate a report from metadata
-  bolt log pathphynder -p                plain-text summary of one experiment
-
 Type 'q' at any prompt to cancel. Run 'bolt <command> -h' for help on a
 specific command.
 """
