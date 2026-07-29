@@ -1,5 +1,4 @@
 """bolt exp <name> [-d/--description DESC]"""
-
 import os
 
 from ..context import require_context, save_context, bolt_file_path
@@ -30,16 +29,21 @@ def run(args):
     require_context(allowed_types={"project", "experiment"})
 
     name = validate_name(args.name, "experiment name")
-
     target_dir = os.path.join(os.getcwd(), name)
+
+    adopting = False
     if os.path.exists(target_dir):
-        die(f"'{name}' already exists in the current directory.")
+        if not os.path.isdir(target_dir):
+            die(f"'{name}' already exists in the current directory and is not a directory.")
+        if os.path.isfile(bolt_file_path(target_dir)):
+            die(f"'{name}' is already a Bolt directory.")
+        adopting = True
 
     description = args.description
     if description is None:
         description = prompt("Experiment description: ")
 
-    os.makedirs(target_dir)
+    os.makedirs(target_dir, exist_ok=True)
 
     data = {
         "type": "experiment",
@@ -56,6 +60,9 @@ def run(args):
     }
     save_context(target_dir, data)
 
-    print(f"Created experiment '{name}' at {target_dir}")
+    if adopting:
+        print(f"Initialized existing directory '{name}' as an experiment at {target_dir}")
+    else:
+        print(f"Created experiment '{name}' at {target_dir}")
     print(f"Metadata stored in {bolt_file_path(target_dir)}")
     print("Status: pending")

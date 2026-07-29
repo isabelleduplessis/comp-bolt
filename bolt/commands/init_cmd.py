@@ -1,5 +1,4 @@
 """bolt init <name> [-d/--description DESC]"""
-
 import os
 
 from ..context import save_context, bolt_file_path
@@ -23,16 +22,21 @@ def register(subparsers):
 
 def run(args):
     name = validate_name(args.name, "project name")
-
     target_dir = os.path.join(os.getcwd(), name)
+
+    adopting = False
     if os.path.exists(target_dir):
-        die(f"'{name}' already exists in the current directory.")
+        if not os.path.isdir(target_dir):
+            die(f"'{name}' already exists in the current directory and is not a directory.")
+        if os.path.isfile(bolt_file_path(target_dir)):
+            die(f"'{name}' is already a Bolt directory.")
+        adopting = True
 
     description = args.description
     if description is None:
         description = prompt("Project description: ")
 
-    os.makedirs(target_dir)
+    os.makedirs(target_dir, exist_ok=True)
 
     data = {
         "type": "project",
@@ -45,5 +49,8 @@ def run(args):
     }
     save_context(target_dir, data)
 
-    print(f"Initialized Bolt project '{name}' at {target_dir}")
+    if adopting:
+        print(f"Initialized existing directory '{name}' as a Bolt project at {target_dir}")
+    else:
+        print(f"Initialized Bolt project '{name}' at {target_dir}")
     print(f"Metadata stored in {bolt_file_path(target_dir)}")
