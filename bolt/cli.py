@@ -55,20 +55,20 @@ def build_parser():
 
 
 def _warn_pending_jobs():
-    """If run inside a project, warn (non-blocking) about pending experiments anywhere in it."""
+    """If run inside a project, warn (non-blocking) about in progress experiments anywhere in it."""
     root_dir, root_data = find_project_root()
     if root_dir is None:
         return
 
     all_exps = collect_all_experiments(root_dir, cwd=root_dir, include_archived=False)
-    pending = [e for e in all_exps if e["data"].get("status") == "pending"]
+    pending = [e for e in all_exps if e["data"].get("status") == "in progress"]
     if not pending:
         return
 
     count = len(pending)
     plural = "s" if count != 1 else ""
     verb = "have" if count != 1 else "has"
-    print(f"{count} experiment{plural} currently {verb} pending status. Run bolt review to update them.")
+    print(f"{count} experiment{plural} currently {verb} in progress status. Run bolt review to update them.")
 
 
 def main(argv=None):

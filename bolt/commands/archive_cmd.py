@@ -2,7 +2,7 @@
 
 Archives (or unarchives) a project or experiment. Archived items stay in
 metadata and are recoverable, but are excluded from bolt log reports and
-from bolt review's pending list.
+from bolt review's in progress list.
 """
 
 import os

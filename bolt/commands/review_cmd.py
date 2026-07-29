@@ -2,8 +2,8 @@
 
 Reviews an experiment anywhere at or below the current project/experiment,
 including experiments nested inside other experiments. With no argument,
-lists every pending experiment (shown as paths like . or ./exp2/exp3) and
-lets you pick one.
+lists every in-progress experiment (shown as paths like . or ./exp2/exp3)
+and lets you pick one.
 """
 
 from ..context import require_context, save_context
@@ -11,14 +11,15 @@ from ..targets import collect_all_experiments
 from ..utils import now_iso, prompt, choose_from_list, die
 
 STATUS_MAP = {
-    "s": "success",
-    "success": "success",
-    "f": "fail",
-    "fail": "fail",
-    "p": "pending",
-    "pending": "pending",
+    "c": "complete",
+    "complete": "complete",
+    "p": "in progress",
+    "progress": "in progress",
+    "in progress": "in progress",
     "i": "inconclusive",
     "inconclusive": "inconclusive",
+    "f": "fail",
+    "fail": "fail",
 }
 
 
@@ -30,7 +31,7 @@ def register(subparsers):
             "Review an experiment at or below the current project or "
             "experiment, including experiments nested inside other "
             "experiments. If none is given, you'll be prompted to choose "
-            "from all pending experiments found."
+            "from all in-progress experiments found."
         ),
     )
     p.add_argument(
@@ -73,22 +74,22 @@ def run(args):
             die(f"Multiple experiments match '{target}' ({options}); specify the full path.")
         entry = matches[0]
     else:
-        pending = [e for e in all_exps if e["data"].get("status") == "pending"]
-        if not pending:
-            die("No pending experiments to review. Specify one explicitly instead.")
-        print("Pending experiments:")
+        in_progress = [e for e in all_exps if e["data"].get("status") == "in progress"]
+        if not in_progress:
+            die("No in-progress experiments to review. Specify one explicitly instead.")
+        print("In-progress experiments:")
         entry = choose_from_list(
-            pending,
+            in_progress,
             formatter=lambda e: e["rel"],
             prompt_text="Select an experiment to review",
         )
 
     exp_data = entry["data"]
 
-    status_input = prompt("Status ([s]uccess / [f]ail / [p]ending / [i]nconclusive): ")
+    status_input = prompt("Status ([c]omplete / in [p]rogress / [i]nconclusive / [f]ail): ")
     status = STATUS_MAP.get(status_input.strip().lower())
     while status is None:
-        status_input = prompt("Please enter one of s/f/p/i: ")
+        status_input = prompt("Please enter one of c/p/i/f: ")
         status = STATUS_MAP.get(status_input.strip().lower())
 
     result_text = prompt("Status description: ")

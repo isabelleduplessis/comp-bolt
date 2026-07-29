@@ -51,7 +51,7 @@ def run(args):
         "description": description,
         "created": now_iso(),
         "archived": False,
-        "status": "pending",
+        "status": "in progress",
         "status_description": None,
         "review_timestamp": None,
         "notes": [],
@@ -65,4 +65,4 @@ def run(args):
     else:
         print(f"Created experiment '{name}' at {target_dir}")
     print(f"Metadata stored in {bolt_file_path(target_dir)}")
-    print("Status: pending")
+    print("Status: in progress")

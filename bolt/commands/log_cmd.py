@@ -95,9 +95,9 @@ def _datetime(iso_ts):
 
 
 def _status_label(status):
-    # Keep the raw status vocabulary as-is (success, pending, fail,
-    # inconclusive, abandoned) — just capitalize it for display.
-    return (status or "pending").capitalize()
+    # Keep the raw status vocabulary as-is (complete, in progress,
+    # inconclusive, fail) — just title-case it for display.
+    return (status or "in progress").title()
 
 
 def _note_lines(notes):
@@ -188,15 +188,14 @@ def _render_report(tree, is_project):
 
     status_counts = {}
     for node, _path in flat:
-        status = node["data"].get("status", "pending")
+        status = node["data"].get("status", "in progress")
         status_counts[status] = status_counts.get(status, 0) + 1
 
     out.append(f"**Experiment Directories:** {len(flat)}")
-    out.append(f"- Success: {status_counts.get('success', 0)}")
-    out.append(f"- Pending: {status_counts.get('pending', 0)}")
-    out.append(f"- Fail: {status_counts.get('fail', 0)}")
+    out.append(f"- Complete: {status_counts.get('complete', 0)}")
+    out.append(f"- In Progress: {status_counts.get('in progress', 0)}")
     out.append(f"- Inconclusive: {status_counts.get('inconclusive', 0)}")
-    out.append(f"- Abandoned: {status_counts.get('abandoned', 0)}")
+    out.append(f"- Fail: {status_counts.get('fail', 0)}")
     out.append("")
 
     for node, path in flat:
@@ -206,7 +205,7 @@ def _render_report(tree, is_project):
         out.append("| Description | Status | Last Review Date | Review |")
         out.append("|-------------|--------|-------------------|--------|")
         description = str(data.get("description") or "").strip().replace("\n", " ")
-        status_label = _status_label(data.get("status", "pending"))
+        status_label = _status_label(data.get("status", "in progress"))
         last_review = _datetime(data.get("review_timestamp"))
         result = str(data.get("status_description") or "").strip().replace("\n", " ")
         out.append(f"| {description} | {status_label} | {last_review} | {result} |")
