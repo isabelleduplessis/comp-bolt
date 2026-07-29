@@ -6,6 +6,7 @@ Archived experiments are excluded.
 """
 
 import os
+from datetime import datetime
 
 from ..context import find_context, bolt_file_path
 from ..targets import find_subdir_context
@@ -57,11 +58,8 @@ def run(args):
         die(f"'{data.get('name')}' is archived. Unarchive it with 'bolt archive -u' to log it.")
 
     tree = _build_tree(directory)
-
-    if data.get("type") == "project":
-        text = _render_project(tree)
-    else:
-        text = _render_experiment_root(tree)
+    is_project = data.get("type") == "project"
+    text = _render_report(tree, is_project)
 
     if args.plain:
         text = _to_plain(text)
@@ -83,216 +81,176 @@ def _build_tree(directory):
     return node
 
 
-def _date(iso_ts):
+def _datetime(iso_ts):
+    """Render an ISO timestamp as 'YYYY-MM-DD HH:MM:SS'. Falls back to the
+    raw date portion if the timestamp can't be parsed."""
     if not iso_ts:
         return ""
-    return str(iso_ts).split("T")[0]
+    raw = str(iso_ts)
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return raw.split("T")[0]
+
+
+def _status_label(status):
+    # Keep the raw status vocabulary as-is (success, pending, fail,
+    # inconclusive, abandoned) — just capitalize it for display.
+    return (status or "pending").capitalize()
 
 
 def _note_lines(notes):
-    return [f"- {_date(n.get('timestamp'))}: {n.get('text')}" for n in notes]
+    return [f"- **{_datetime(n.get('timestamp'))}:** {n.get('text')}" for n in notes]
 
 
-def _render_project(tree):
-    data = tree["data"]
+def _review_lines(reviews):
+    lines = []
+    for review in reviews:
+        ts = _datetime(review.get("timestamp"))
+        status = _status_label(review.get("status"))
+        result = str(review.get("result") or "").strip()
+        lines.append(f"- **{ts}:** Status: {status}. {result}")
+    return lines
+
+
+def _tree_lines(root):
+    """Ascii directory-style tree for a single top-level experiment root."""
+    lines = [f"{root['data'].get('name')}/"]
+    lines.extend(_tree_children_lines(root, ""))
+    return lines
+
+
+def _tree_children_lines(node, prefix):
+    lines = []
+    children = node["children"]
+    for i, child in enumerate(children):
+        is_last = i == len(children) - 1
+        connector = "└── " if is_last else "├── "
+        suffix = "/" if child["children"] else ""
+        lines.append(f"{prefix}{connector}{child['data'].get('name')}{suffix}")
+        extension = "    " if is_last else "│   "
+        lines.extend(_tree_children_lines(child, prefix + extension))
+    return lines
+
+
+def _flatten(node, path, out):
+    out.append((node, path))
+    for child in node["children"]:
+        _flatten(child, f"{path}/{child['data'].get('name')}", out)
+
+
+def _count_archived(directory):
+    """Archived experiments are excluded from the tree entirely, so re-walk
+    the raw filesystem to count them separately for the Abandoned tally."""
+    count = 0
+    for entry in sorted(os.listdir(directory)):
+        sub = os.path.join(directory, entry)
+        if os.path.isdir(sub) and os.path.isfile(bolt_file_path(sub)):
+            sub_data = load_yaml(bolt_file_path(sub))
+            if sub_data.get("type") == "experiment":
+                if sub_data.get("archived", False):
+                    count += 1
+                else:
+                    count += _count_archived(sub)
+    return count
+
+
+def _render_report(tree, is_project):
     out = []
-    out.append(f"# Project: {data.get('name')}")
-    out.append("")
-    out.append("## Description")
-    out.append("")
-    out.append(str(data.get("description") or "").strip())
-    out.append("")
-    out.append(f"**Created:** {_date(data.get('created'))}")
-    out.append("")
-    out.append("---")
-    out.append("")
-    out.append("# Experiments")
-    out.append("")
 
-    for child in tree["children"]:
-        out.extend(_render_experiment_node(child, name_level=2, detailed=False))
+    if is_project:
+        data = tree["data"]
+        out.append(f"# {data.get('name')}")
+        out.append("")
+        description = str(data.get("description") or "").strip().replace("\n", " ")
+        out.append(f"**Description:** {description}")
+        out.append("")
+        out.append(f"**Project Created:** {_datetime(data.get('created'))}")
+        out.append("")
         out.append("---")
         out.append("")
+        roots = tree["children"]
+    else:
+        roots = [tree]
 
-    exp_count, status_counts, abandoned = _summarize(tree)
     out.append("# Summary")
     out.append("")
-    out.append(f"**Experiments:** {exp_count}")
+    out.append("```bash")
+    for root in roots:
+        out.extend(_tree_lines(root))
+    out.append("```")
     out.append("")
-    out.append("## Status Counts")
-    out.append("")
+
+    flat = []
+    for root in roots:
+        _flatten(root, root["data"].get("name"), flat)
+
+    status_counts = {}
+    for node, _path in flat:
+        status = node["data"].get("status", "pending")
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+    out.append(f"**Experiment Directories:** {len(flat)}")
     out.append(f"- Success: {status_counts.get('success', 0)}")
-    out.append(f"- Fail: {status_counts.get('fail', 0)}")
     out.append(f"- Pending: {status_counts.get('pending', 0)}")
+    out.append(f"- Fail: {status_counts.get('fail', 0)}")
     out.append(f"- Inconclusive: {status_counts.get('inconclusive', 0)}")
-    out.append(f"- Abandoned: {abandoned}")
-
-    return "\n".join(out)
-
-
-def _render_experiment_root(tree):
-    data = tree["data"]
-    out = []
-    out.append(f"# Experiment: {data.get('name')}")
-    out.append("")
-    out.append("## Description")
-    out.append("")
-    out.append(str(data.get("description") or "").strip())
-    out.append("")
-    out.append(f"**Created:** {_date(data.get('created'))}")
-    out.append("")
-    out.append("---")
+    out.append(f"- Abandoned: {status_counts.get('abandoned', 0)}")
     out.append("")
 
-    out.append("## Current Status")
-    out.append("")
-    out.append(data.get("status", "pending"))
-    out.append("")
-    out.append("## Current Result")
-    out.append("")
-    out.append(data.get("status_description") or "")
-    out.append("")
-
-    reviews = data.get("reviews", [])
-    if reviews:
-        out.append("## Review History")
+    for node, path in flat:
+        data = node["data"]
+        out.append(f"## {path}")
         out.append("")
-        for review in reviews:
-            out.append(f"### {_date(review.get('timestamp'))}")
-            out.append("")
-            out.append(f"**Status:** {review.get('status')}")
-            out.append("")
-            out.append(f"**Result:** {review.get('result')}")
-            out.append("")
-
-    out.append("---")
-    out.append("")
-
-    if data.get("notes"):
-        out.append("## Notes")
-        out.append("")
-        out.extend(_note_lines(data["notes"]))
-        out.append("")
-        out.append("---")
-        out.append("")
-
-    if tree["children"]:
-        out.append("## Nested Experiments")
-        out.append("")
-        for child in tree["children"]:
-            out.extend(_render_experiment_node(child, name_level=3, detailed=True))
-            out.append("---")
-            out.append("")
-
-    return "\n".join(out)
-
-
-def _render_experiment_node(node, name_level, detailed):
-    data = node["data"]
-    out = []
-    out.append("#" * name_level + f" {data.get('name')}")
-    out.append("")
-
-    section_level = name_level + 1
-    child_level = name_level + 2
-
-    out.append("#" * section_level + " Description")
-    out.append("")
-    out.append(str(data.get("description") or "").strip())
-    out.append("")
-
-    if detailed:
-        out.append("#" * section_level + " Current Status")
-        out.append("")
-        out.append(data.get("status", "pending"))
-        out.append("")
-        out.append("#" * section_level + " Current Result")
-        out.append("")
-        out.append(data.get("status_description") or "")
+        out.append("| Description | Status | Last Review Date | Review |")
+        out.append("|-------------|--------|-------------------|--------|")
+        description = str(data.get("description") or "").strip().replace("\n", " ")
+        status_label = _status_label(data.get("status", "pending"))
+        last_review = _datetime(data.get("review_timestamp"))
+        result = str(data.get("status_description") or "").strip().replace("\n", " ")
+        out.append(f"| {description} | {status_label} | {last_review} | {result} |")
         out.append("")
 
         reviews = data.get("reviews", [])
-        if reviews:
-            out.append("#" * section_level + " Review History")
+        if len(reviews) > 1:
+            out.append("#### Review History")
             out.append("")
-            review_level = section_level + 1
-            for review in reviews:
-                out.append("#" * review_level + f" {_date(review.get('timestamp'))}")
-                out.append("")
-                out.append(f"**Status:** {review.get('status')}")
-                out.append("")
-                out.append(f"**Result:** {review.get('result')}")
-                out.append("")
-    else:
-        out.append(f"**Status:** {data.get('status', 'pending')}")
-        out.append("")
-        out.append(f"**Last Review:** {_date(data.get('review_timestamp'))}")
-        out.append("")
-        out.append(f"**Result:** {data.get('status_description') or ''}")
-        out.append("")
+            out.extend(_review_lines(reviews))
+            out.append("")
 
-    if data.get("notes"):
-        out.append("#" * section_level + " Notes")
-        out.append("")
-        out.extend(_note_lines(data["notes"]))
-        out.append("")
+        if data.get("notes"):
+            out.append("#### Notes")
+            out.append("")
+            out.extend(_note_lines(data["notes"]))
+            out.append("")
 
-    if node["children"]:
-        out.append("#" * section_level + " Nested Experiments")
-        out.append("")
-        for child in node["children"]:
-            out.extend(_render_experiment_node(child, name_level=child_level, detailed=detailed))
+    out.append("---")
+    out.append("")
+    out.append(f"Log generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-    return out
-
-
-def _summarize(tree):
-    exp_count = 0
-    status_counts = {}
-    abandoned = 0
-
-    def walk(node):
-        nonlocal exp_count
-        exp_count += 1
-        data = node["data"]
-        status = data.get("status", "pending")
-        status_counts[status] = status_counts.get(status, 0) + 1
-        for child in node["children"]:
-            walk(child)
-
-    for child in tree["children"]:
-        walk(child)
-
-    # Count archived experiments as "Abandoned" (they're skipped from the
-    # tree above, so re-walk the raw filesystem to tally them).
-    def count_archived(directory):
-        nonlocal abandoned
-        for entry in sorted(os.listdir(directory)):
-            sub = os.path.join(directory, entry)
-            if os.path.isdir(sub) and os.path.isfile(bolt_file_path(sub)):
-                sub_data = load_yaml(bolt_file_path(sub))
-                if sub_data.get("type") == "experiment":
-                    if sub_data.get("archived", False):
-                        abandoned += 1
-                    else:
-                        count_archived(sub)
-
-    count_archived(tree["dir"])
-
-    return exp_count, status_counts, abandoned
+    return "\n".join(out)
 
 
 def _to_plain(markdown_text):
     out_lines = []
+    in_code_block = False
     for line in markdown_text.split("\n"):
-        if line.strip() == "---":
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_code_block = not in_code_block
+            continue
+        if in_code_block:
+            out_lines.append(line)
+            continue
+        if stripped == "---":
             continue
         if line.startswith("#"):
-            stripped = line.lstrip("#")
-            level = len(line) - len(stripped)
-            text = stripped.strip()
+            hashes = line[: len(line) - len(line.lstrip("#"))]
+            level = len(hashes)
+            text = line.lstrip("#").strip()
             indent = "  " * max(level - 1, 0)
             out_lines.append(f"{indent}{text}")
-        else:
-            out_lines.append(line.replace("**", ""))
+            continue
+        out_lines.append(line.replace("**", ""))
     return "\n".join(out_lines)
