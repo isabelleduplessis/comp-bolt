@@ -76,7 +76,8 @@ def _warn_pending_jobs():
 def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
-    _warn_pending_jobs()
+    if args.command != "log":
+        _warn_pending_jobs()
     args.func(args)
 
 
