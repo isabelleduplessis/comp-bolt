@@ -14,7 +14,7 @@ def find_subdir_context(name, base=None):
     base = base or os.getcwd()
     sub = os.path.join(base, name)
     if os.path.isdir(sub) and os.path.isfile(bolt_file_path(sub)):
-        return sub, load_context(bolt_file_path(sub))
+        return sub, load_context(sub)
     return None, None
 
 
@@ -29,7 +29,7 @@ def collect_all_experiments(root_dir, cwd=None, include_archived=True, include_r
     cwd = cwd or os.getcwd()
     results = []
 
-    data = load_context(bolt_file_path(root_dir))
+    data = load_context(root_dir)
     is_archived = data.get("archived", False)
 
     if data.get("type") == "experiment" and include_root and (include_archived or not is_archived):
@@ -40,8 +40,8 @@ def collect_all_experiments(root_dir, cwd=None, include_archived=True, include_r
     if include_archived or not is_archived:
         for entry in sorted(os.listdir(root_dir)):
             sub = os.path.join(root_dir, entry)
-            if os.path.isdir(sub) and os.path.isfile(bolt_file_path(sub)):
-                sub_data = load_context(bolt_file_path(sub))
+            if os.path.isdir(sub) and os.path.isfile(sub):
+                sub_data = load_context(sub)
                 if sub_data.get("type") == "experiment":
                     results.extend(
                         collect_all_experiments(sub, cwd, include_archived, include_root=True)

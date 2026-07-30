@@ -12,9 +12,10 @@ def bolt_file_path(directory):
     return os.path.join(directory, BOLT_FILE)
 
 def load_context(directory):
-    data = load_yaml(directory)
+    data = load_yaml(bolt_file_path(directory))
     data["name"] = os.path.basename(os.path.normpath(directory))
     return data
+
 
 
 
