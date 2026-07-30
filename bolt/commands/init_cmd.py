@@ -1,8 +1,8 @@
-"""bolt init <name> [-d/--description DESC]"""
+"""bolt init <path> [-d/--description DESC]"""
 import os
 
 from ..context import save_context, bolt_file_path
-from ..utils import now_iso, prompt, validate_name, die
+from ..utils import now_iso, prompt, resolve_new_target, die
 
 
 def register(subparsers):
@@ -11,7 +11,7 @@ def register(subparsers):
         help="Create a new Bolt project directory.",
         description="Create a new project directory with Bolt metadata.",
     )
-    p.add_argument("name", help="Name of the project to create.")
+    p.add_argument("path", help="Path of the project to create.")
     p.add_argument(
         "-d",
         "--description",
@@ -21,8 +21,10 @@ def register(subparsers):
 
 
 def run(args):
-    name = validate_name(args.name, "project name")
-    target_dir = os.path.join(os.getcwd(), name)
+
+    #name = validate_name(args.path, "project name")
+    target_dir = resolve_new_target(args.path, "directory")
+    name = os.path.basename(target_dir)
 
     adopting = False
     if os.path.exists(target_dir):
@@ -40,7 +42,6 @@ def run(args):
 
     data = {
         "type": "project",
-        "name": name,
         "description": description,
         "created": now_iso(),
         "archived": False,
@@ -51,7 +52,7 @@ def run(args):
     save_context(target_dir, data)
 
     if adopting:
-        print(f"Initialized existing directory '{name}' as a Bolt project at {target_dir}")
+        print(f"Initialized existing directory '{os.path.basename(target_dir)}' as a Bolt project at {target_dir}")
     else:
-        print(f"Initialized Bolt project '{name}' at {target_dir}")
+        print(f"Initialized Bolt project '{os.path.basename(target_dir)}' at {target_dir}")
     print(f"Metadata stored in {bolt_file_path(target_dir)}")

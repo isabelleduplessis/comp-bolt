@@ -1,34 +1,70 @@
 """bolt update <project/experiment>
 
-Updates the name and/or description of a project or experiment, retaining
+Updates the description of a project or experiment, retaining
 the previous values in an update history with timestamps.
 """
 
 import os
 
-from ..context import save_context
-from ..targets import resolve_target
-from ..utils import now_iso, prompt, die
+from ..context import save_context, bolt_file_path, load_context
+from ..utils import now_iso, prompt, die, resolve_new_target
 
 
 def register(subparsers):
     p = subparsers.add_parser(
         "update",
-        help="Update the name and/or description of a project or experiment.",
+        help="Update the description of a project or experiment.",
         description=(
-            "Update the name and/or description of a project or experiment. "
+            "Update the description of a project or experiment. "
             "Previous values are retained (with timestamps) in its update "
             "history."
         ),
     )
     p.add_argument(
-        "name",
-        help="Current name (or relative path, for a nested experiment) of the item to update.",
+        "path",
+        help="Path to the project or experiment to update.",
     )
     p.set_defaults(func=run)
 
+def run(args): ## only for updating description now
+    directory = resolve_new_target(args.path, "directory")
 
-def run(args):
+    bolt_file = bolt_file_path(directory)
+    if not os.path.isfile(bolt_file):
+        die(f"'{directory}' is not a Bolt directory.")
+
+    data = load_context(directory)
+
+    current_desc = data.get("description")
+
+    print(f"Updating {data.get('type')} at {directory}")
+    print(f"Current description: {current_desc}")
+
+    new_desc = prompt(
+        "New description (leave blank to keep current, 'q' to quit): "
+    )
+
+    if not new_desc or new_desc == current_desc:
+        print("No changes made.")
+        return
+
+    data.setdefault("updates", []).append(
+        {
+            "timestamp": now_iso(),
+            "field": "description",
+            "old_value": current_desc,
+            "new_value": new_desc,
+        }
+    )
+
+    data["description"] = new_desc
+
+    save_context(directory, data)
+
+    print(f"Updated {data.get('type')} at {directory}")
+
+
+""" def run(args):
     target = resolve_target(args.name)
 
     if target is None:
@@ -91,3 +127,4 @@ def run(args):
 
     save_context(directory, data)
     print(f"Updated {data.get('type')} at {directory}")
+ """

@@ -34,15 +34,29 @@ def die(message, code=1):
     sys.exit(code)
 
 
-def validate_name(name, what="name"):
-    """Validate that a user-supplied name is safe to use as a single path segment."""
-    if not name or not name.strip():
-        die(f"{what} cannot be empty.")
-    if os.sep in name or (os.altsep and os.altsep in name):
-        die(f"{what} cannot contain path separators ('{name}').")
-    if name in (".", ".."):
-        die(f"{what} is not a valid name ('{name}').")
-    return name
+# def validate_name(name, what="name"):
+#     """Validate that a user-supplied name is safe to use as a single path segment."""
+#     if not name or not name.strip():
+#         die(f"{what} cannot be empty.")
+#     if os.sep in name or (os.altsep and os.altsep in name):
+#         die(f"{what} cannot contain path separators ('{name}').")
+#     if name in (".", ".."):
+#         die(f"{what} is not a valid name ('{name}').")
+#     return name
+
+def resolve_new_target(arg, what="directory"): # update to allow paths and clean them
+    if arg in (".", "./"):
+        return os.getcwd()
+
+    cleaned = os.path.normpath(arg)
+
+    if cleaned in ("", ".", ".."):
+        die(f"'{arg}' is not a valid {what}.")
+
+    if os.path.isabs(cleaned):
+        return cleaned
+
+    return os.path.join(os.getcwd(), cleaned)
 
 
 def choose_from_list(items, formatter=None, prompt_text="Select an option"):

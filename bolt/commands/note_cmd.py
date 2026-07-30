@@ -2,8 +2,7 @@
 
 import os
 
-from ..context import require_context, save_context, bolt_file_path
-from ..yaml_io import load_yaml
+from ..context import require_context, save_context, bolt_file_path, load_context
 from ..utils import now_iso, prompt, choose_from_list, die
 
 
@@ -48,7 +47,7 @@ def _collect_notes(root_dir, cwd):
     """Recursively gather notes from root_dir and every nested experiment
     below it. Returns a list of (rel_path, name, notes)."""
     results = []
-    data = load_yaml(bolt_file_path(root_dir))
+    data = load_context(bolt_file_path(root_dir))
     notes = data.get("notes", [])
     if notes:
         rel = os.path.relpath(root_dir, cwd)
@@ -58,7 +57,7 @@ def _collect_notes(root_dir, cwd):
     for entry in sorted(os.listdir(root_dir)):
         sub = os.path.join(root_dir, entry)
         if os.path.isdir(sub) and os.path.isfile(bolt_file_path(sub)):
-            sub_data = load_yaml(bolt_file_path(sub))
+            sub_data = load_context(bolt_file_path(sub))
             if sub_data.get("type") == "experiment":
                 results.extend(_collect_notes(sub, cwd))
 

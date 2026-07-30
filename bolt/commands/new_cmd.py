@@ -1,8 +1,8 @@
 """bolt exp <name> [-d/--description DESC]"""
 import os
 
-from ..context import require_context, save_context, bolt_file_path
-from ..utils import now_iso, prompt, validate_name, die
+from ..context import find_project_root, save_context, bolt_file_path
+from ..utils import now_iso, prompt, resolve_new_target, die
 
 
 def register(subparsers):
@@ -15,7 +15,7 @@ def register(subparsers):
             "Experiments may be nested arbitrarily."
         ),
     )
-    p.add_argument("name", help="Name of the experiment to create.")
+    p.add_argument("path", help="Path of the experiment to create.")
     p.add_argument(
         "-d",
         "--description",
@@ -24,12 +24,18 @@ def register(subparsers):
     p.set_defaults(func=run)
 
 
-def run(args):
-    # Must be inside a project or experiment (searches cwd and ancestors).
-    require_context(allowed_types={"project", "experiment"})
+def run(args): # you don't have to be inside a project to run the command, but the dir would need to be in a project
 
-    name = validate_name(args.name, "experiment name")
-    target_dir = os.path.join(os.getcwd(), name)
+    target_dir = resolve_new_target(args.path, "directory")
+
+    project_dir, project_data = find_project_root(target_dir)
+
+    if project_dir is None:
+        die(
+            f"'{target_dir}' is not inside a Bolt project."
+        )
+
+    name = os.path.basename(target_dir)
 
     adopting = False
     if os.path.exists(target_dir):
@@ -47,7 +53,6 @@ def run(args):
 
     data = {
         "type": "experiment",
-        "name": name,
         "description": description,
         "created": now_iso(),
         "archived": False,

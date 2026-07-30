@@ -11,6 +11,12 @@ BOLT_FILE = ".bolt.yml"
 def bolt_file_path(directory):
     return os.path.join(directory, BOLT_FILE)
 
+def load_context(directory):
+    data = load_yaml(directory)
+    data["name"] = os.path.basename(os.path.normpath(directory))
+    return data
+
+
 
 def find_context(start=None):
     """Walk upward from `start` (default: cwd) looking for the nearest .bolt.yml.
@@ -22,7 +28,7 @@ def find_context(start=None):
     while True:
         candidate = bolt_file_path(current)
         if os.path.isfile(candidate):
-            return current, load_yaml(candidate)
+            return current, load_context(candidate) # replaced load yaml to get rid of name
 
         parent = os.path.dirname(current)
         if parent == current:
@@ -40,7 +46,7 @@ def require_context(start=None, allowed_types=None):
     directory, data = find_context(start)
     if directory is None:
         die(
-            "Not inside a Bolt project. Run 'bolt init <name>' to create one first."
+            "Not inside a Bolt project. Run 'bolt init <path>' to create one first."
         )
 
     if allowed_types and data.get("type") not in allowed_types:

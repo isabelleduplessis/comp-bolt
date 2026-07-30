@@ -7,9 +7,8 @@ from bolt review's in progress list.
 
 import os
 
-from ..context import save_context, find_context, bolt_file_path
+from ..context import save_context, find_context, bolt_file_path, load_context
 from ..targets import resolve_target
-from ..yaml_io import load_yaml
 from ..utils import die
 
 
@@ -88,7 +87,7 @@ def _show_status():
             for entry in sorted(os.listdir(d)):
                 sub = os.path.join(d, entry)
                 if os.path.isdir(sub) and os.path.isfile(bolt_file_path(sub)):
-                    sub_data = load_yaml(bolt_file_path(sub))
+                    sub_data = load_context(bolt_file_path(sub))
                     if sub_data.get("type") == "experiment":
                         walk(sub, sub_data, prefix + "  ")
 

@@ -18,7 +18,7 @@ from .context import find_project_root
 from .targets import collect_all_experiments
 
 DESCRIPTION = (
-    "Comp-BOLT: Computational Biology project Organization, Logging, and Tracking\n"
+    "Comp-BOLT: Comp Bio project Organization, Logging, and Tracing\n"
     "Version: 0.1.0\n"
     "Well-documented project directories and report generation."
 )
