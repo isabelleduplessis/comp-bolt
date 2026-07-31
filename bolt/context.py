@@ -29,7 +29,7 @@ def find_context(start=None):
     while True:
         candidate = bolt_file_path(current)
         if os.path.isfile(candidate):
-            return current, load_context(candidate) # replaced load yaml to get rid of name
+            return current, load_context(current) # replaced load yaml to get rid of name ## ???? whyis this line giving me issues
 
         parent = os.path.dirname(current)
         if parent == current:

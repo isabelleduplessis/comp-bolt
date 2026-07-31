@@ -87,7 +87,7 @@ def _show_status():
             for entry in sorted(os.listdir(d)):
                 sub = os.path.join(d, entry)
                 if os.path.isdir(sub) and os.path.isfile(bolt_file_path(sub)):
-                    sub_data = load_context(bolt_file_path(sub))
+                    sub_data = load_context(sub)
                     if sub_data.get("type") == "experiment":
                         walk(sub, sub_data, prefix + "  ")
 

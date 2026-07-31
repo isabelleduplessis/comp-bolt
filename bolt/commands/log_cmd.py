@@ -67,13 +67,13 @@ def run(args):
 
 
 def _build_tree(directory):
-    data = load_context(bolt_file_path(directory))
+    data = load_context(directory)
     node = {"dir": directory, "data": data, "children": []}
 
     for entry in sorted(os.listdir(directory)):
         sub = os.path.join(directory, entry)
         if os.path.isdir(sub) and os.path.isfile(bolt_file_path(sub)):
-            sub_data = load_context(bolt_file_path(sub))
+            sub_data = load_context(sub)
             if sub_data.get("type") == "experiment" and not sub_data.get("archived", False):
                 node["children"].append(_build_tree(sub))
 
@@ -159,7 +159,7 @@ def _count_archived(directory):
     for entry in sorted(os.listdir(directory)):
         sub = os.path.join(directory, entry)
         if os.path.isdir(sub) and os.path.isfile(bolt_file_path(sub)):
-            sub_data = load_context(bolt_file_path(sub))
+            sub_data = load_context(sub)
             if sub_data.get("type") == "experiment":
                 if sub_data.get("archived", False):
                     count += 1
