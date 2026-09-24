@@ -68,8 +68,15 @@ def show_status(_args=None):
 
     def walk(d, dat, prefix="", branch="", is_last=True):
         is_archived = dat.get("archived", False)
-        status_suffix = f", status={dat['status']}" if dat.get("type") == "experiment" else ""
-        label = f"{prefix}{branch}{dat.get('name')} ({dat.get('type')}{status_suffix})"
+
+        if dat.get("type") == "project":
+            label = f"{prefix}{branch}{dat.get('name')} (project)"
+        elif dat.get("type") == "experiment":
+            status = dat.get("status", "")
+            label = f"{prefix}{branch}{dat.get('name')} ({status})" if status else f"{prefix}{branch}{dat.get('name')}"
+        else:
+            label = f"{prefix}{branch}{dat.get('name')}"
+
         (archived if is_archived else active).append(label)
 
         # An archived experiment's descendants are reported under it, not separately.
@@ -103,10 +110,9 @@ def show_status(_args=None):
     else:
         print("  (none)")
 
-    print("Archived:")
     if archived:
+        print("")
+        print("Archived:")
         for item in archived:
             print(f"  {item}")
-    else:
-        print("  (none)")
     print("")

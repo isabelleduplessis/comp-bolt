@@ -29,23 +29,42 @@ def collect_all_experiments(root_dir, cwd=None, include_archived=True, include_r
     cwd = cwd or os.getcwd()
     results = []
 
-    data = load_context(root_dir)
-    is_archived = data.get("archived", False)
+    def walk(directory, data, add_current):
+        is_archived = data.get("archived", False)
+        if data.get("type") == "experiment" and add_current and (
+            include_archived or not is_archived
+        ):
+            rel = os.path.relpath(directory, cwd)
+            rel_display = "." if rel == "." else (rel if rel.startswith(".") else f"./{rel}")
+            results.append({"dir": directory, "data": data, "rel": rel_display})
 
-    if data.get("type") == "experiment" and include_root and (include_archived or not is_archived):
-        rel = os.path.relpath(root_dir, cwd)
-        rel_display = "." if rel == "." else (rel if rel.startswith(".") else f"./{rel}")
-        results.append({"dir": root_dir, "data": data, "rel": rel_display})
+        if not include_archived and is_archived:
+            return
 
-    if include_archived or not is_archived:
-        for entry in sorted(os.listdir(root_dir)):
-            sub = os.path.join(root_dir, entry)
-            if os.path.isdir(sub) and os.path.isfile(sub):
+        for entry in sorted(os.listdir(directory)):
+            sub = os.path.join(directory, entry)
+            if not os.path.isdir(sub):
+                continue
+            if os.path.isfile(bolt_file_path(sub)):
                 sub_data = load_context(sub)
                 if sub_data.get("type") == "experiment":
-                    results.extend(
-                        collect_all_experiments(sub, cwd, include_archived, include_root=True)
-                    )
+                    walk(sub, sub_data, add_current=True)
+            else:
+                walk_unmanaged(sub)
+
+    def walk_unmanaged(directory):
+        for entry in sorted(os.listdir(directory)):
+            sub = os.path.join(directory, entry)
+            if not os.path.isdir(sub):
+                continue
+            if os.path.isfile(bolt_file_path(sub)):
+                sub_data = load_context(sub)
+                if sub_data.get("type") == "experiment":
+                    walk(sub, sub_data, add_current=True)
+            else:
+                walk_unmanaged(sub)
+
+    walk(root_dir, load_context(root_dir), include_root)
 
     return results
 
