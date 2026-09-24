@@ -40,9 +40,8 @@ def build_parser():
         "-v", "--version", action="version", version=f"bolt {__version__}"
     )
 
-    subparsers = parser.add_subparsers(
-        dest="command", metavar="<command>", required=True
-    )
+    subparsers = parser.add_subparsers(dest="command", metavar="<command>")
+    parser.set_defaults(func=archive_cmd.show_status)
 
     init_cmd.register(subparsers)
     new_cmd.register(subparsers)
@@ -78,6 +77,8 @@ def main(argv=None):
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
     if args.command != "log":
         _warn_pending_jobs()
+    if args.command is None:
+        print(parser.format_help())
     args.func(args)
 
 

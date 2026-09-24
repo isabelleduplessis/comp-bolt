@@ -1,6 +1,6 @@
 # Comp-BOLT
 
-**Comp**utational **B**iology project **O**rganization, **L**ogging, and **T**racking.
+**Comp** **B**io project **O**rganization, **L**ogging, and **T**racing.
 
 v0.1.0
 
@@ -18,6 +18,15 @@ The user can then get logs of their notes for a directory or whole projct.
 
 ## Installation
 
+NOTE python 3.8 or higher required. 
+
+On FH cluster run before installing:
+```bash
+ml fhPython
+echo "fhPython" >> ~/.bash_profile
+```
+
+Install:
 ```bash
 pip install git+https://github.com/isabelleduplessis/comp-bolt.git
 ```
@@ -156,8 +165,10 @@ and from `bolt review`'s job lists.
 bolt archive pathphynder
 bolt archive run_pathphynder.sh
 bolt archive pathphynder -u / --unarchive
-bolt archive -s / --status        # show active vs. archived items
 ```
+
+Running `bolt` by itself shows the active and archived items below the
+current directory, followed by the same help text as `bolt -h`.
 
 
 ## Metadata format
@@ -199,10 +210,4 @@ jobs:
     status_description: No derived SNPs error.
     review_timestamp: 2026-07-09T16:00:00
     update_history: []
-```
-
-## Development
-
-```bash
-pip install -e .
 ```
